@@ -36,10 +36,14 @@ MARKDOWN = {
     'th': ('|', ''),
     'tr': ('', '\n'),
     'table': ('', '\n'),
-    'e_p': ('', '\n')
+    'e_p': ('', '\n'),
+    'mathjax_inline': ('$', '$'),
+    'mathjax_block': ('\n$$', '\n$$\n'),
 }
 
 BlOCK_ELEMENTS = {
+    'mathjax_inline': '<script type="math/tex".*?>([\s\S]*?)</script>',
+    'mathjax_block': '<script type="math/tex; mode=display".*?>([\s\S]*?)</script>',
     'h1': '<h1.*?>(.*?)</h1>',
     'h2': '<h2.*?>(.*?)</h2>',
     'h3': '<h3.*?>(.*?)</h3>',
@@ -51,27 +55,30 @@ BlOCK_ELEMENTS = {
     'ul': '<ul.*?>(.*?)</ul>',
     'ol': '<ol.*?>(.*?)</ol>',
     'block_code': '<pre.*?><code.*?>(.*?)</code></pre>',
-    'p': '<p\s.*?>(.*?)</p>',
-    'p_with_out_class': '<p>(.*?)</p>',
+    # 'p': '<p\s.*?>(.*?)</p>', change to the following line to skip the mathjax--block
+    'p': '<p\s((?!class="mathjax mathjax--block").)*?>([\s\S]*?)</p>',
+    'p_with_out_class': '<p>([\s\S]*?)</p>',
     'thead': '<thead.*?>(.*?)</thead>',
     'tr': '<tr.*?>(.*?)</tr>'
 }
 
 
 INLINE_ELEMENTS = {
+    'mathjax_inline': '<script type="math/tex".*?>(.*?)</script>',
+    'mathjax_block': '<script type="math/tex; mode=display".*?>([\s\S]*?)</script>',
     'td': '<td.*?>((.|\n)*?)</td>',  # td element may span lines
     'tr': '<tr.*?>((.|\n)*?)</tr>',
     'th': '<th.*?>(.*?)</th>',
     'b': '<b.*?>(.*?)</b>',
     'i': '<i.*?>(.*?)</i>',
     'del': '<del.*?>(.*?)</del>',
-    'inline_p': '<p\s.*?>(.*?)</p>',
-    'inline_p_with_out_class': '<p>(.*?)</p>',
+    'inline_p': '<p\s.*?>([\s\S]*?)</p>',
+    'inline_p_with_out_class': '<p>([\s\S]*?)</p>',
     'code': '<code.*?>(.*?)</code>',
     'span': '<span.*?>(.*?)</span>',
     'ul': '<ul.*?>(.*?)</ul>',
     'ol': '<ol.*?>(.*?)</ol>',
-    'li': '<li.*?>(.*?)</li>',
+    'li': '<li.*?>([\s\S]*?)</li>',
     'img': '<img.*?src="(.*?)".*?>(.*?)</img>',
     'img_single': '<img.*?src="(.*?)".*?/>',
     'img_single_no_close': '<img.*?src="(.*?)".*?>',
@@ -81,8 +88,24 @@ INLINE_ELEMENTS = {
     'tbody': '<tbody.*?>((.|\n)*)</tbody>',
 }
 
-DELETE_ELEMENTS = ['<span.*?>', '</span>', '<div.*?>', '</div>', '<br clear="none"/>', '<center.*?>', '</center>']
+ESCAPE_CODE = {
+}
 
+CODE_CLEAN = {
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',  # html quote mark
+    '<br>': '\n',
+    '\n\n': '\n',
+    '\r': '', # windows \r character
+    '\xc2\xa0': ' ',  # no break space
+}
+
+REMOVE_ATTR = 'data-mathml=".*?"' # data-mathml contains '>', which will cause incorrect
+                                  # match, must being removed at the first
+
+DELETE_ELEMENTS = ['<math.*?>[\s\S]*?</math>', '<svg.*?>[\s\S]*?</svg>', '<span.*?>', '<div.*?>', '</div>',
+ '<br clear="none"/>', '<center.*?>', '</center>', '</span>', '<nobr.*?>[\s\S]*?</nobr>']
 
 class Element:
     def __init__(self, start_pos, end_pos, content, tag, folder, is_block=False):
@@ -104,9 +127,8 @@ class Element:
         return self._result
 
     def parse_inline(self):
-        self.content = self.content.replace('\r', '')  # windows \r character
-        self.content = self.content.replace('\xc2\xa0', ' ')  # no break space
-        self.content = self.content.replace('&quot;', '\"')  # html quote mark
+        for k, c in ESCAPE_CODE.items():
+            self.content = self.content.replace(k, c)
 
         for m in re.finditer("<img(.*?)en_todo.*?>", self.content):
             # remove img and change to [ ] and [x]
@@ -206,6 +228,9 @@ class Tomd:
     def convert(self, html="", options=None):
         if html == "":
             html = self.html
+
+        html = re.sub(REMOVE_ATTR, '', html)
+
         # main function here
         elements = []
         for tag, pattern in BlOCK_ELEMENTS.items():
@@ -217,6 +242,7 @@ class Tomd:
                                   tag=tag,
                                   folder=self.folder,
                                   is_block=True)
+
                 can_append = True
                 for e in elements:
                     if e.start_pos < m.start() and e.end_pos > m.end():
@@ -227,6 +253,9 @@ class Tomd:
                     elements.append(element)
         elements.sort(key=lambda element: element.start_pos)
         self._markdown = ''.join([str(e) for e in elements])
+
+        for before, after in CODE_CLEAN.items():
+            self._markdown = re.sub(before, after, self._markdown)
 
         for index, element in enumerate(DELETE_ELEMENTS):
             self._markdown = re.sub(element, '', self._markdown)
