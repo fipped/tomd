@@ -20,7 +20,7 @@ MARKDOWN = {
     'blockquote': ('\n> ', '\n'),
     'em': ('*', '*'),
     'strong': ('**', '**'),
-    'block_code': ('\n```\n', '\n```\n'),
+    'block_code': ('\n```cpp\n', '\n```\n'),
     'span': ('', ''),
     'p': ('\n', '\n'),
     'p_with_out_class': ('\n', '\n'),
@@ -38,11 +38,10 @@ MARKDOWN = {
     'table': ('', '\n'),
     'e_p': ('', '\n'),
     'mathjax_inline': ('$', '$'),
-    'mathjax_block': ('\n$$', '\n$$\n'),
+    'mathjax_block': ('\n$$\n', '\n$$\n'),
 }
 
 BlOCK_ELEMENTS = {
-    'mathjax_inline': '<script type="math/tex".*?>([\s\S]*?)</script>',
     'mathjax_block': '<script type="math/tex; mode=display".*?>([\s\S]*?)</script>',
     'h1': '<h1.*?>(.*?)</h1>',
     'h2': '<h2.*?>(.*?)</h2>',
@@ -88,16 +87,12 @@ INLINE_ELEMENTS = {
     'tbody': '<tbody.*?>((.|\n)*)</tbody>',
 }
 
-ESCAPE_CODE = {
-}
-
 CODE_CLEAN = {
     '&lt;': '<',
     '&gt;': '>',
-    '&quot;': '"',  # html quote mark
+    '&quot;': '"',    # html quote mark
     '<br>': '\n',
-    '\n\n': '\n',
-    '\r': '', # windows \r character
+    '\r': '',         # windows \r character
     '\xc2\xa0': ' ',  # no break space
 }
 
@@ -127,9 +122,6 @@ class Element:
         return self._result
 
     def parse_inline(self):
-        for k, c in ESCAPE_CODE.items():
-            self.content = self.content.replace(k, c)
-
         for m in re.finditer("<img(.*?)en_todo.*?>", self.content):
             # remove img and change to [ ] and [x]
             # evernote specific parsing
@@ -255,7 +247,7 @@ class Tomd:
         self._markdown = ''.join([str(e) for e in elements])
 
         for before, after in CODE_CLEAN.items():
-            self._markdown = re.sub(before, after, self._markdown)
+            self._markdown = self._markdown.replace(before, after)
 
         for index, element in enumerate(DELETE_ELEMENTS):
             self._markdown = re.sub(element, '', self._markdown)
